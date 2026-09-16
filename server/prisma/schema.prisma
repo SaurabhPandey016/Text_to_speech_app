@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String             @id @default(cuid())
+  name         String
+  email        String             @unique
+  passwordHash String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  generations  SpeechGeneration[]
+}
+
+model SpeechGeneration {
+  id         String   @id @default(cuid())
+  text       String
+  language   String
+  voice      String
+  format     String   @default("MP3")
+  createdAt  DateTime @default(now())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
