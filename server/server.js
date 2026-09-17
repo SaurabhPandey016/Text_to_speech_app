@@ -18,16 +18,143 @@ const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'local-development-secret-change-me';
 const maxCharacters = Number(process.env.MAX_CHARACTERS) || 5000;
 
-const voices = [
-  { id: 'Ashley', name: 'Ashley', language: 'English', code: 'en-US', style: 'Warm and clear' },
-  { id: 'Dennis', name: 'Dennis', language: 'English', code: 'en-US', style: 'Confident and steady' },
-  { id: 'Luna', name: 'Luna', language: 'Spanish', code: 'es-ES', style: 'Expressive and bright' },
-  { id: 'Priya', name: 'Priya', language: 'Hindi', code: 'hi-IN', style: 'Natural and friendly' },
-  { id: 'Neel', name: 'Neel', language: 'Gujarati', code: 'gu-IN', style: 'Warm and conversational' },
-  { id: 'Ananya', name: 'Ananya', language: 'Marathi', code: 'mr-IN', style: 'Smooth and articulate' },
-  { id: 'Claire', name: 'Claire', language: 'French', code: 'fr-FR', style: 'Elegant and precise' },
-  { id: 'Greta', name: 'Greta', language: 'German', code: 'de-DE', style: 'Balanced and composed' },
+const defaultVoiceCatalog = [
+  { id: 'Riya', name: 'Riya', language: 'English', code: 'en-US', style: 'Professional and clean female voice' },
+  { id: 'Graham', name: 'Graham', language: 'English', code: 'en-US', style: 'Authoritative British male voice' },
+  { id: 'Simon', name: 'Simon', language: 'English', code: 'en-US', style: 'Articulate and corporate male voice' },
+  { id: 'Nate', name: 'Nate', language: 'English', code: 'en-US', style: 'Conversational and friendly male voice' },
+  { id: 'Anjali', name: 'Anjali', language: 'English', code: 'en-US', style: 'Confident Indian female voice' },
+  { id: 'Ishaan', name: 'Ishaan', language: 'English', code: 'en-US', style: 'Natural Indian male voice' },
+  { id: 'Nour', name: 'Nour', language: 'English', code: 'en-US', style: 'Friendly Arabic female voice' },
+  { id: 'Matthias', name: 'Matthias', language: 'English', code: 'en-US', style: 'Resonant German male voice' },
+  { id: 'Renata', name: 'Renata', language: 'English', code: 'en-US', style: 'Calm Brazilian female voice' },
+  { id: 'Yulia', name: 'Yulia', language: 'English', code: 'en-US', style: 'Gentle Russian female voice' },
 ];
+
+const defaultLanguageCode = 'en-US';
+let voices = [...defaultVoiceCatalog];
+
+function normalizeLanguageCode(language) {
+  if (!language) return defaultLanguageCode;
+  const normalized = String(language).trim();
+  return normalized || defaultLanguageCode;
+}
+
+function normalizeVoiceItem(item) {
+  if (!item || typeof item !== 'object') return null;
+
+  const id = item.id || item.voiceId || item.voice_id || item.name || item.label || item.voice_name || item.voiceName;
+  const name = item.name || item.label || item.voiceName || item.voice_name || item.voiceId || item.id || 'Voice';
+  const languageName = item.language || item.locale || item.languageName || item.nativeLanguage || item.language_name || 'English';
+  const code = item.code || item.locale || item.languageCode || item.lang || item.language || item.language_code || defaultLanguageCode;
+  const style = item.style || item.description || item.voiceStyle || item.voice_style || 'Natural';
+
+  if (!id) return null;
+
+  return {
+    id: String(id),
+    name: String(name),
+    language: String(languageName),
+    code: String(code).replace(/_/g, '-'),
+    style: String(style),
+  };
+}
+
+function parseProviderVoiceList(payload) {
+  if (!payload) return [];
+
+  const source = Array.isArray(payload)
+    ? payload
+    : payload.voices || payload.items || payload.data || payload.result || payload.voiceList || payload.choices || [];
+
+  const list = Array.isArray(source) ? source : (source && typeof source === 'object' ? [source] : []);
+  return list.map(normalizeVoiceItem).filter(Boolean);
+}
+
+function buildInworldAuthHeaders() {
+  const key = (process.env.INWORLD_API_KEY || '').trim();
+  if (!key) return [{}];
+
+  const encodedMajor = Buffer.from(key).toString('base64');
+  const encodedBasic = Buffer.from(`${key}:`).toString('base64');
+
+  return [
+    { Authorization: `Bearer ${key}` },
+    { Authorization: `Basic ${key}` },
+    { Authorization: `Basic ${encodedBasic}` },
+    { Authorization: `Basic ${encodedMajor}` },
+    { 'x-api-key': key },
+    { 'api-key': key },
+  ];
+}
+
+async function loadDynamicVoices() {
+  const configuredCatalog = process.env.INWORLD_VOICES || process.env.VOICE_CATALOG || process.env.INWORLD_VOICE_LIST;
+  if (configuredCatalog) {
+    try {
+      const parsed = JSON.parse(configuredCatalog);
+      const normalized = parseProviderVoiceList(parsed);
+      if (normalized.length) {
+        voices = normalized;
+        return voices;
+      }
+    } catch (error) {
+      console.warn('Failed to parse configured voice catalog:', error.message);
+    }
+  }
+
+  const inworldUrl = process.env.INWORLD_TTS_URL || 'https://api.inworld.ai/tts/v1/voice';
+  const baseCandidates = [
+    inworldUrl.replace(/\/voice$/i, ''),
+    inworldUrl.replace(/\/tts\/v1\/voice$/i, '/tts/v1'),
+    'https://api.inworld.ai/tts/v1',
+    'https://api.inworld.ai/tts',
+    'https://api.inworld.ai',
+  ];
+
+  const endpointUrls = [...new Set(baseCandidates.flatMap((base) => [
+    `${base.replace(/\/$/, '')}/voices`,
+    `${base.replace(/\/$/, '')}/voice`,
+    `${base.replace(/\/$/, '')}/v1/voices`,
+    `${base.replace(/\/$/, '')}/v1/voice`,
+    `${base.replace(/\/$/, '')}/tts/v1/voices`,
+    `${base.replace(/\/$/, '')}/tts/v1/voice`,
+  ]))];
+
+  const headersPool = buildInworldAuthHeaders();
+
+  for (const endpoint of endpointUrls) {
+    for (const headers of headersPool) {
+      try {
+        const response = await fetch(endpoint, { method: 'GET', headers });
+        if (!response.ok) continue;
+        const data = await response.json();
+        const normalized = parseProviderVoiceList(data);
+        if (normalized.length) {
+          voices = normalized;
+          console.log(`[Inworld] loaded ${voices.length} supported voices from ${endpoint}`);
+          return voices;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+  }
+
+  voices = [...defaultVoiceCatalog];
+  return voices;
+}
+
+function resolveVoiceForLanguage(language, requestedVoiceId) {
+  const normalizedLanguage = normalizeLanguageCode(language);
+  const preferredVoice = voices.find((voice) => voice.code === normalizedLanguage && (voice.id === requestedVoiceId || voice.name === requestedVoiceId));
+  if (preferredVoice) return preferredVoice;
+
+  const sameLanguageVoice = voices.find((voice) => voice.code === normalizedLanguage);
+  if (sameLanguageVoice) return sameLanguageVoice;
+
+  return voices.find((voice) => voice.code === defaultLanguageCode) || voices[0];
+}
 
 const authPayload = (user) => ({ id: user.id, name: user.name, email: user.email });
 
@@ -70,7 +197,13 @@ const speechLimiter = rateLimit({ windowMs: 60 * 1000, limit: 12, standardHeader
 
 app.get('/health', (_req, res) => res.status(200).json({ success: true, message: 'Echo server is healthy', timestamp: new Date().toISOString() }));
 app.get('/api/config', (_req, res) => res.json({ maxCharacters, formats: ['MP3', 'WAV'] }));
-app.get('/api/voices', (_req, res) => res.json({ voices, languages: [...new Map(voices.map((voice) => [voice.code, { name: voice.language, code: voice.code }])).values()] }));
+app.get('/api/voices', async (_req, res) => {
+  const currentVoices = await loadDynamicVoices();
+  return res.json({
+    voices: currentVoices,
+    languages: [...new Map(currentVoices.map((voice) => [voice.code, { name: voice.language, code: voice.code }])).values()],
+  });
+});
 
 app.get('/api/auth/me', (req, res) => res.json({ user: req.user || null }));
 
@@ -114,26 +247,63 @@ app.get('/api/history', async (req, res) => {
 app.post('/api/speech', speechLimiter, async (req, res) => {
   const parsed = speechSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid speech request.' });
-  const selectedVoice = voices.find((voice) => voice.id === parsed.data.voice && voice.code === parsed.data.language);
-  if (!selectedVoice) return res.status(400).json({ error: 'That voice is not available for the selected language.' });
+
+  const resolvedVoices = await loadDynamicVoices();
+  const requestedVoice = resolveVoiceForLanguage(parsed.data.language, parsed.data.voice);
+  const fallbackVoice = resolveVoiceForLanguage(defaultLanguageCode, 'Ashley');
+  const voiceAttempts = [requestedVoice, fallbackVoice].filter((voice, index, list) => list.findIndex((candidate) => candidate.id === voice.id && candidate.code === voice.code) === index);
+
   if (!process.env.INWORLD_API_KEY) return res.status(503).json({ error: 'TTS service is not configured. Add INWORLD_API_KEY to the server environment.' });
+
   try {
-    const response = await fetch(process.env.INWORLD_TTS_URL || 'https://api.inworld.ai/tts/v1/voice', { method: 'POST', headers: { Authorization: `Basic ${process.env.INWORLD_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: process.env.INWORLD_MODEL_ID || 'inworld-tts-1.5-max', text: parsed.data.text, voiceId: selectedVoice.id, audioConfig: { audioEncoding: parsed.data.format, sampleRateHertz: 24000 } }) });
-    if (!response.ok) {
-      const details = await response.text();
-      console.error('Inworld error:', response.status, details.slice(0, 500));
+    let providerResponse;
+    let activeVoice = requestedVoice;
+    let lastError = null;
+
+    for (const voice of voiceAttempts) {
+      const payload = {
+        modelId: process.env.INWORLD_MODEL_ID || 'inworld-tts-2',
+        text: parsed.data.text,
+        voiceId: voice.id,
+        language: voice.code,
+        audioConfig: {
+          audioEncoding: parsed.data.format === 'WAV' ? 'LINEAR16' : 'MP3',
+          sampleRateHertz: 24000,
+        },
+      };
+
+      providerResponse = await fetch(process.env.INWORLD_TTS_URL || 'https://api.inworld.ai/tts/v1/voice', {
+        method: 'POST',
+        headers: { Authorization: `Basic ${process.env.INWORLD_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (providerResponse.ok) {
+        activeVoice = voice;
+        break;
+      }
+
+      const details = await providerResponse.text();
+      lastError = { status: providerResponse.status, details: details.slice(0, 500) };
+      console.error('Inworld error for voice', voice.id, providerResponse.status, details.slice(0, 500));
+    }
+
+    if (!providerResponse || !providerResponse.ok) {
+      console.error('Speech provider rejected request:', lastError);
       return res.status(502).json({ error: 'The speech provider rejected the request. Check the provider key and voice configuration.' });
     }
-    const contentType = response.headers.get('content-type') || '';
+
+    const contentType = providerResponse.headers.get('content-type') || '';
     let audio;
-    if (contentType.includes('audio/')) audio = Buffer.from(await response.arrayBuffer()).toString('base64');
+    if (contentType.includes('audio/')) audio = Buffer.from(await providerResponse.arrayBuffer()).toString('base64');
     else {
-      const payload = await response.json();
+      const payload = await providerResponse.json();
       audio = payload.audioContent || payload.audio_content || payload.audio || payload.result?.audioContent;
     }
+
     if (!audio) return res.status(502).json({ error: 'The speech provider returned no audio.' });
-    if (req.user) await prisma.speechGeneration.create({ data: { text: parsed.data.text, language: parsed.data.language, voice: selectedVoice.name, format: parsed.data.format, userId: req.user.id } });
-    return res.json({ audio: `data:audio/${parsed.data.format === 'WAV' ? 'wav' : 'mpeg'};base64,${audio}`, format: parsed.data.format, voice: selectedVoice.name });
+    if (req.user) await prisma.speechGeneration.create({ data: { text: parsed.data.text, language: activeVoice.code, voice: activeVoice.name, format: parsed.data.format, userId: req.user.id } });
+    return res.json({ audio: `data:audio/${parsed.data.format === 'WAV' ? 'wav' : 'mpeg'};base64,${audio}`, format: parsed.data.format, voice: activeVoice.name, language: activeVoice.code });
   } catch (error) {
     console.error('Speech error:', error);
     return res.status(502).json({ error: 'Speech generation failed. Please check your connection and try again.' });

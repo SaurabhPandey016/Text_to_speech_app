@@ -9,14 +9,16 @@ type Voice = { id: string; name: string; language: string; code: string; style: 
 type User = { id: string; name: string; email: string };
 
 const fallbackVoices: Voice[] = [
-  { id: "Ashley", name: "Ashley", language: "English", code: "en-US", style: "Warm and clear" },
-  { id: "Dennis", name: "Dennis", language: "English", code: "en-US", style: "Confident and steady" },
-  { id: "Priya", name: "Priya", language: "Hindi", code: "hi-IN", style: "Natural and friendly" },
-  { id: "Neel", name: "Neel", language: "Gujarati", code: "gu-IN", style: "Warm and conversational" },
-  { id: "Ananya", name: "Ananya", language: "Marathi", code: "mr-IN", style: "Smooth and articulate" },
-  { id: "Luna", name: "Luna", language: "Spanish", code: "es-ES", style: "Expressive and bright" },
-  { id: "Claire", name: "Claire", language: "French", code: "fr-FR", style: "Elegant and precise" },
-  { id: "Greta", name: "Greta", language: "German", code: "de-DE", style: "Balanced and composed" },
+  { id: "Riya", name: "Riya", language: "English", code: "en-US", style: "Professional and clean female voice" },
+  { id: "Graham", name: "Graham", language: "English", code: "en-US", style: "Authoritative British male voice" },
+  { id: "Simon", name: "Simon", language: "English", code: "en-US", style: "Articulate and corporate male voice" },
+  { id: "Nate", name: "Nate", language: "English", code: "en-US", style: "Conversational and friendly male voice" },
+  { id: "Anjali", name: "Anjali", language: "English", code: "en-US", style: "Confident Indian female voice" },
+  { id: "Ishaan", name: "Ishaan", language: "English", code: "en-US", style: "Natural Indian male voice" },
+  { id: "Nour", name: "Nour", language: "English", code: "en-US", style: "Friendly Arabic female voice" },
+  { id: "Matthias", name: "Matthias", language: "English", code: "en-US", style: "Resonant German male voice" },
+  { id: "Renata", name: "Renata", language: "English", code: "en-US", style: "Calm Brazilian female voice" },
+  { id: "Yulia", name: "Yulia", language: "English", code: "en-US", style: "Gentle Russian female voice" },
 ];
 
 export default function Home() {
@@ -31,15 +33,24 @@ export default function Home() {
   const [error, setError] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "account">("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const availableLanguages = useMemo(() => [...new Map(voices.map((item) => [item.code, item.language])).entries()], [voices]);
-  const availableVoices = voices.filter((item) => item.code === language);
+  const availableVoices = useMemo(() => {
+    const matches = voices.filter((item) => item.code === language);
+    return matches.length ? matches : voices.filter((item) => item.code === "en-US");
+  }, [language, voices]);
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+  useEffect(() => {
+    if (!availableVoices.some((item) => item.id === voice)) {
+      setVoice(availableVoices[0]?.id || "");
+    }
+  }, [availableVoices, voice]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/voices`).then((response) => response.ok ? response.json() : null).then((data) => {
@@ -96,7 +107,7 @@ export default function Home() {
           <a href="#studio" onClick={() => setMobileOpen(false)}>Studio</a>
           <a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a>
           <a href="#about" onClick={() => setMobileOpen(false)}>About</a>
-          <button className="nav-login" onClick={() => { setAuthMode("login"); setAuthOpen(true); setMobileOpen(false); }}>{user ? <CircleUserRound size={16} /> : <LogIn size={16} />}{user ? user.name : "Sign in"}</button>
+          <button className="nav-login" onClick={() => { setAuthMode(user ? "account" : "login"); setAuthOpen(true); setMobileOpen(false); }}>{user ? <CircleUserRound size={16} /> : <LogIn size={16} />}{user ? user.name : "Sign in"}</button>
         </div>
         <button className="icon-button menu-button" aria-label="Open navigation" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X size={21} /> : <Menu size={21} />}</button>
       </nav>
@@ -124,7 +135,7 @@ export default function Home() {
           <div className="select-wrap"><select id="language" value={language} onChange={(event) => { const nextLanguage = event.target.value; setLanguage(nextLanguage); setVoice(voices.find((item) => item.code === nextLanguage)?.id || ""); }}>{availableLanguages.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select><ChevronDown size={17} /></div>
           <label className="field-label" htmlFor="voice">Voice</label>
           <div className="voice-select"><select id="voice" value={voice} onChange={(event) => setVoice(event.target.value)}>{availableVoices.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.style}</option>)}</select><ChevronDown size={17} /></div>
-          <div className="format-row"><span className="field-label">Export format</span><div className="segmented">{["MP3", "WAV"].map((item) => <button key={item} className={format === item ? "active" : ""} onClick={() => setFormat(item)}>{item}</button>)}</div></div>
+          <div className="format-row"><span className="field-label">Export format</span><div className="segmented"><button className="active" onClick={() => setFormat("MP3")}>MP3</button></div></div>
           <button className="generate-button" onClick={generateSpeech} disabled={isGenerating}>{isGenerating ? <LoaderCircle size={19} className="spin" /> : <Zap size={18} />}{isGenerating ? "Creating your audio..." : "Generate speech"}<ArrowRight size={18} /></button>
           {error && <div className="error-message" role="alert">{error}</div>}
         </div>
@@ -134,9 +145,46 @@ export default function Home() {
 
       <section className="feature-strip" id="how-it-works"><div><span className="feature-number">01</span><h3>Write freely</h3><p>Drop in an article, a draft, or the thought you cannot stop thinking about.</p></div><div><span className="feature-number">02</span><h3>Find your tone</h3><p>Pick a voice that makes the words feel like they belong to you.</p></div><div><span className="feature-number">03</span><h3>Press play</h3><p>Listen, download, and let your attention move where it needs to go.</p></div></section>
 
-      <footer id="about"><div className="footer-brand"><a className="brand" href="#studio"><span className="brand-mark"><Headphones size={18} /></span><span>echo<span className="accent">.</span></span></a><p>Thoughtful text-to-speech for the way you work and learn.</p></div><div className="footer-links"><a href="#studio">Studio</a><a href="#how-it-works">How it works</a><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}>Create account</button></div><div className="footer-note"><span>Made by Saurabh</span><span>© 2026 Echo / Labmentix Projects</span></div></footer>
+      <footer id="about" className="site-footer">
+        <div className="footer-top">
+          <div className="footer-brand">
+            <a className="brand" href="#studio"><span className="brand-mark"><Headphones size={18} /></span><span>echo<span className="accent">.</span></span></a>
+            <p>Thoughtful text-to-speech for creators, teams, and people who work with words every day.</p>
+            <div className="footer-contact-inline">
+              <a href="mailto:developersaurabh001@gmail.com">developersaurabh001@gmail.com</a>
+              <a href="tel:+918720026790">+91 8720026790</a>
+            </div>
+          </div>
 
-      {authOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="modal-close" aria-label="Close" onClick={() => setAuthOpen(false)}><X size={19} /></button><span className="section-kicker">Your listening room</span><h2 id="auth-title">{authMode === "login" ? "Welcome back." : "Make Echo yours."}</h2><p>{authMode === "login" ? "Sign in to keep your recent audio close." : "Create an account to keep a private generation history."}</p><form onSubmit={submitAuth}>{authMode === "register" && <input required minLength={2} placeholder="Your name" value={authForm.name} onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })} />}<input required type="email" placeholder="Email address" value={authForm.email} onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })} /><input required minLength={8} type="password" placeholder="Password · 8 characters minimum" value={authForm.password} onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })} />{authError && <div className="error-message">{authError}</div>}<button className="generate-button" disabled={authBusy}>{authBusy ? <LoaderCircle size={18} className="spin" /> : <LogIn size={17} />}{authBusy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"}</button></form><button className="switch-auth" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? "Need an account? Create one" : "Already have an account? Sign in"}</button>{user && <button className="switch-auth" onClick={logout}>Sign out</button>}</div></div>}
+          <div className="footer-column">
+            <h4>Company</h4>
+            <a href="#studio">Studio</a>
+            <a href="#how-it-works">How it works</a>
+            <button onClick={() => { setAuthMode(user ? "account" : "register"); setAuthOpen(true); }}>{user ? "My account" : "Create account"}</button>
+          </div>
+
+          <div className="footer-column">
+            <h4>Support</h4>
+            <a href="#how-it-works">Help center</a>
+            <a href="#about">Privacy</a>
+            <a href="#about">Terms</a>
+          </div>
+
+          <div className="footer-column">
+            <h4>Follow</h4>
+            <a href="https://www.linkedin.com/in/saurabhpandey-/" target="_blank" rel="noreferrer">LinkedIn</a>
+            <a href="https://github.com/SaurabhPandey016" target="_blank" rel="noreferrer">GitHub</a>
+            <a href="mailto:developersaurabh001@gmail.com">Email</a>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <span>© 2026 Echo</span>
+          <span>Made with ❤️ by Saurabh Pandey</span>
+        </div>
+      </footer>
+
+      {authOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="modal-close" aria-label="Close" onClick={() => setAuthOpen(false)}><X size={19} /></button>{user && authMode === "account" ? <><span className="section-kicker">Your account</span><h2 id="auth-title">Welcome back, {user.name.split(" ")[0]}.</h2><p>Your listening room is ready and your recent audio stays saved.</p><div className="account-panel"><div className="account-summary"><span className="account-pill"><CircleUserRound size={16} /></span><div><strong>{user.name}</strong><small>{user.email}</small></div></div><button className="account-action">Manage profile</button><button className="account-action">Recent generations</button><button className="generate-button account-logout" onClick={logout}>Sign out</button></div></> : <><span className="section-kicker">Your listening room</span><h2 id="auth-title">{authMode === "login" ? "Welcome back." : "Make Echo yours."}</h2><p>{authMode === "login" ? "Sign in to keep your recent audio close." : "Create an account to keep a private generation history."}</p><form onSubmit={submitAuth}>{authMode === "register" && <input required minLength={2} placeholder="Your name" value={authForm.name} onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })} />}<input required type="email" placeholder="Email address" value={authForm.email} onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })} /><input required minLength={8} type="password" placeholder="Password · 8 characters minimum" value={authForm.password} onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })} />{authError && <div className="error-message">{authError}</div>}<button className="generate-button" disabled={authBusy}>{authBusy ? <LoaderCircle size={18} className="spin" /> : <LogIn size={17} />}{authBusy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"}</button></form><button className="switch-auth" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? "Need an account? Create one" : "Already have an account? Sign in"}</button>{user && <button className="switch-auth" onClick={logout}>Sign out</button>}</>}</div></div>}
     </main>
   );
 }

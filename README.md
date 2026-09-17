@@ -1,48 +1,172 @@
-# Echo
+# Echo — AI Voice Studio
 
-Echo is a responsive text-to-speech studio built with Next.js, Express, Prisma, Supabase PostgreSQL, and Inworld TTS.
+<div align="center">
+  <img src="https://img.shields.io/badge/Next.js-16.3.4-000000?style=for-the-badge&logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express" alt="Express" />
+  <img src="https://img.shields.io/badge/Prisma-PostgreSQL-2D3748?style=for-the-badge&logo=prisma" alt="Prisma" />
+  <img src="https://img.shields.io/badge/Inworld-TTS-FFD95A?style=for-the-badge" alt="Inworld" />
+</div>
+
+A premium text-to-speech product experience for creators, students, teams, and brands who need fast, polished voice generation from written content.
+
+Echo combines a modern Next.js frontend, a secure Express API, Prisma-powered persistence, and a provider-driven TTS layer to deliver a smooth, production-style audio generation workflow.
+
+## Why this project matters
+
+- Converts written text into natural-sounding voice output
+- Keeps the UX focused on speed, clarity, and premium presentation
+- Uses provider-verified voice metadata instead of hardcoded fake language lists
+- Includes auth, history tracking, and safe generation workflows
+- Built to showcase a real-world AI product architecture for interviews and portfolio review
+
+## Product highlights
+
+- Responsive SaaS-style interface
+- Voice + language tuning controls
+- Audio preview and MP3 export
+- User auth with session cookies
+- Recent generation history support
+- Rate-limited speech generation endpoint
+- Provider-driven voice catalog loading
+
+## Stack
+
+- Frontend: Next.js 16, React 19, TypeScript
+- Backend: Express.js, Node.js
+- Database: PostgreSQL via Prisma + Supabase
+- TTS provider: Inworld AI
+- Security: JWT cookies, Helmet, CORS, Zod validation, rate limiting
+
+## Architecture
+
+```text
+Client (Next.js)
+   └── POST /api/speech
+          │
+          ▼
+Server (Express)
+   ├── validates request
+   ├── resolves provider voice/language metadata
+   ├── calls Inworld TTS API
+   ├── stores generation history (if authenticated)
+   └── returns audio data URL to browser
+```
 
 ## Local setup
 
-1. In `server`, create `.env` from `.env.example` and set your Supabase and Inworld values. PostgreSQL passwords containing `@` must use `%40` in the connection URL.
-2. Run the database migration:
+### 1) Install dependencies
 
-```powershell
+```bash
 cd server
 npm install
+
+cd ../client
+npm install
+```
+
+### 2) Configure environment variables
+
+Create a `.env` inside the `server` folder with values like:
+
+```env
+PORT=10000
+DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
+CLIENT_URL=http://localhost:3000
+JWT_SECRET=your-secret
+MAX_CHARACTERS=5000
+INWORLD_API_KEY=your_key
+INWORLD_TTS_URL=https://api.inworld.ai/tts/v1/voice
+INWORLD_MODEL_ID=inworld-tts-2
+```
+
+Then create `client/.env.local` if required:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:10000
+```
+
+### 3) Run database migrations
+
+```bash
+cd server
 npx prisma migrate deploy
 ```
 
-3. Start the API:
+### 4) Start both apps
 
-```powershell
+Terminal 1:
+
+```bash
+cd server
 npm run dev
 ```
 
-4. In a second terminal, create `client/.env.local` from `.env.example`, then start Next:
+Terminal 2:
 
-```powershell
+```bash
 cd client
-npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open http://localhost:3000
 
-## Inworld TTS
+## Important provider behavior
 
-The app uses Inworld's TTS API at `https://api.inworld.ai/tts/v1/voice`. Find the API key in the [Inworld Studio platform](https://platform.inworld.ai/), under your project API credentials. The key is used only by the Express server. `INWORLD_MODEL_ID` defaults to `inworld-tts-1.5-max`; keep it configurable because available models can change by account.
+This app is designed to respect the actual provider capability list instead of hardcoding fake language options.
 
-Echo validates the available voice/language list from the server, sends model/voice/audio configuration to Inworld, accepts the provider's base64 audio response, and returns it to the browser for playback or download.
+- The server fetches or normalizes provider voice metadata
+- The UI only shows language options that the TTS provider exposes
+- The selected voice and selected language are matched carefully to avoid mismatches
+- The current live Inworld account is validated at runtime, so the app follows the real catalog rather than assumptions
 
-## Deployment
+## Production notes
 
-For Render, deploy `server` as a Node web service with `npm install`, `npx prisma migrate deploy`, and `npm start`. Add the server variables from `server/.env.example`, using the Supabase pooled URL as `DATABASE_URL` and direct URL as `DIRECT_URL`.
+- JWT-authenticated sessions are cookie-based and protected from browser storage misuse
+- Input is validated with Zod before generation
+- Generated requests are protected with rate limiting
+- Provider credentials and DB secrets should never be committed to Git
 
-For Vercel, deploy `client` as a Next.js project with `NEXT_PUBLIC_API_URL` set to the public Render API URL. Set `CLIENT_URL` on Render to the Vercel URL. Use a long random `JWT_SECRET`, enable HTTPS, and rotate provider/database credentials before production.
+## Deployment guidance
 
-## Security notes
+### Backend deployment
 
-- Auth uses JWTs in `httpOnly`, `sameSite` cookies; no browser token or local-storage session is used.
-- Speech generation is rate limited and input is validated with Zod.
-- `.env` files are ignored by git. Never commit provider or database credentials.
+Deploy the server as a Node.js service with:
+
+- `npm install`
+- `npx prisma migrate deploy`
+- `npm start`
+
+### Frontend deployment
+
+Deploy the Next.js app to Vercel or a similar platform and set:
+
+```env
+NEXT_PUBLIC_API_URL=https://your-backend-domain
+```
+
+Set the backend `CLIENT_URL` to the deployed frontend origin.
+
+## Security checklist
+
+- Keep `.env` files local and ignored by Git
+- Rotate keys regularly
+- Use a strong `JWT_SECRET`
+- Restrict database access and validation rules
+- Use HTTPS in production
+
+## Roadmap
+
+- multilingual provider expansion and dynamic voice mapping
+- better audio history UX
+- user profile improvements
+- workspace and team-level TTS usage tracking
+- polished admin analytics dashboard
+
+## License
+
+This project is currently for portfolio, demonstration, and internal product exploration.
+
+---
+
+Built with focus on product polish, AI UX, and real-world system thinking.
