@@ -14,7 +14,7 @@ function issueToken(user) {
 function setAuthCookie(res, user) {
   res.cookie('echo_auth', issueToken(user), {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
     secure: env.nodeEnv === 'production',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
